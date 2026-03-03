@@ -1,16 +1,15 @@
 
 import { useState } from "react";
 import DisplayPlayers from './Players/DisplayPlayers';
-import League from './Leagues/League.jsx';
 
 const Main = (props) =>{
     return (
-        <div> <p>main</p> 
-        <League />
-        <DisplayPlayers />
+        <div>
+            <p>main</p>
+            <DisplayPlayers league={props.league} />
+            {/* league components moved to App header/footer */}
         </div>
     );
-
 }
 
 export default Main;

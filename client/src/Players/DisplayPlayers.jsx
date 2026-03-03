@@ -5,73 +5,78 @@ const DisplayPlayers = (props) => {
     const [players, setPlayers] = useState([]);
     const [undrafted, setUndrafted] = useState([]);
 
-    
-    
     useEffect(() => {
-        async function getPlayers() {
+        // moved fetching into shared function below
+        async function fetchAll() {
             try {
                 const res = await fetch("/api/get-all-players");
                 const data = await res.json();
-                // console.log("Fetched players:", data);
-                setPlayers(data);
+                let list = data || [];
+                if (props.league && props.league._id) {
+                    list = list.filter(p => {
+                        if (!p.leagueId) return false;
+                        const lid = p.leagueId && (p.leagueId.toString ? p.leagueId.toString() : String(p.leagueId));
+                        return String(lid) === String(props.league._id);
+                    });
+                }
+                setPlayers(list);
             } catch (e) {
-                setPlayers([]); // Ensure it stays an array on error
-
+                setPlayers([]);
                 console.log("Error displaying players", e);
             }
-        }
-        getPlayers();
-    }, []);
-    useEffect(() => {
-        async function getUndraftedPlayers() {
             try {
-                const res = await fetch("/api/get-all-undrafted");
-                const data = await res.json();
-                // console.log("Fetched players:", data);
-                setUndrafted(data);
+                const res2 = await fetch("/api/get-all-undrafted");
+                const data2 = await res2.json();
+                let list2 = data2 || [];
+                if (props.league && props.league._id) {
+                    list2 = list2.filter(p => {
+                        if (!p.leagueId) return false;
+                        const lid = p.leagueId && (p.leagueId.toString ? p.leagueId.toString() : String(p.leagueId));
+                        return String(lid) === String(props.league._id);
+                    });
+                }
+                setUndrafted(list2);
             } catch (e) {
-                setUndrafted([]); // Ensure it stays an array on error
-
-                console.log("Error displaying players", e);
+                setUndrafted([]);
+                console.log("Error displaying undrafted players", e);
             }
         }
-        getUndraftedPlayers();
-    }, []);
 
+        fetchAll();
 
+        const handler = () => fetchAll();
+        window.addEventListener('leaguesChanged', handler);
+        return () => window.removeEventListener('leaguesChanged', handler);
+    }, [props.league]);
 
     return (
         <div>
-            {/* <div>
-                <h4>Top Rated Players</h4>
-                <ul id="playerDisplay">
+            <div>
+                <h4>Top Players in League</h4>
+                <ul id="topPlayers">
                     {
-
-                        players.map(p => (
+                        players.slice(0, 10).map(p => (
                             <li key={p._id}>
-                                {p.firstName}   {p.lastName} <br></br>{p.preferedPosition?.[0]}, {p.age},<br></br> Off: {Math.floor(p.overallOffense)}, Def:{Math.floor(p.overallDefense)}<br></br><br></br>
+                                {p.firstName} {p.lastName} — {p.preferedPosition?.[0]}, {p.age} — Off: {Math.floor(p.overallOffense)}, Def: {Math.floor(p.overallDefense)}
                             </li>
                         ))
                     }
                 </ul>
-            </div> */}
-
+            </div>
 
             <div>
-                <h4>Top Rated Undrafted Players</h4>
+                <h4>Top Rated Undrafted Players in League</h4>
                 <ul id="topUndrafted">
                     {
-
-                        undrafted.map(u => (
+                        undrafted.slice(0, 10).map(u => (
                             <li key={u._id}>
-                                {u.firstName}   {u.lastName} <br></br>{u.preferedPosition?.[0]}, {u.age},<br></br> Off: {Math.floor(u.overallOffense)}, Def:{Math.floor(u.overallDefense)}<br></br><br></br>
+                                {u.firstName} {u.lastName} <br></br>{u.preferedPosition?.[0]}, {u.age},<br></br> Off: {Math.floor(u.overallOffense)}, Def:{Math.floor(u.overallDefense)}<br></br><br></br>
                             </li>
                         ))
                     }
                 </ul>
             </div>
         </div>
-
     )
 }
 

@@ -22,7 +22,9 @@ const SignIn = (props) => {
         if(data.password === password){
           console.log("Passwords match!");
           props.setUsername(username);
-        props.setSignedIn(true);
+          props.setSignedIn(true);
+          if (props.setUserID) props.setUserID(data._id);
+          if (props.setTeam && data.team) props.setTeam(data.team);
         }
         else{
           console.log("wrong pass");
@@ -40,8 +42,11 @@ const SignIn = (props) => {
         if (response.ok) {
           console.log("Submitted username:", username);
           console.log("Submitted password:", password);
+          const body = await response.json();
           props.setUsername(username);
           props.setSignedIn(true);
+          if (props.setUserID) props.setUserID(body._id);
+          if (props.setTeam && body.team) props.setTeam(body.team);
         }
       }
         // console.log("wrong password, should do nothign");
