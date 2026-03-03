@@ -90,7 +90,7 @@ const App = props => {
                 {selectedLeague && <p>current league: {selectedLeague.name}</p>}
             </header>
             <main>
-                <Main userID={userID} league={selectedLeague} />
+                <Main userID={userID} league={selectedLeague} userTeam={userTeam} setUserTeam={setUserTeam} />
             </main>
             <footer>
                 <LeagueCreator setLeague={setSelectedLeague} userID={userID} selectedLeague={selectedLeague} />

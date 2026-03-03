@@ -1,7 +1,7 @@
 // utils/player.js
 import { connectDB } from "../database.js";
 
-export async function makePlayer(first, last, date = new Date(), leagueId = null) {
+export async function makePlayer(first, last, date = new Date(), leagueId = null, positionOverride = null) {
   const db = await connectDB();
   const players = db.collection("Players");
 
@@ -11,6 +11,11 @@ export async function makePlayer(first, last, date = new Date(), leagueId = null
     pos = "Forward";
   } else if (rand > 5) {
     pos = "Defence";
+  }
+
+  // override if caller wants a specific position
+  if (positionOverride) {
+    pos = positionOverride;
   }
 
   const offense = {
@@ -62,7 +67,6 @@ export async function makePlayer(first, last, date = new Date(), leagueId = null
     },
   };
 
-  // Associate player with a single league if provided
   if (leagueId) {
     doc.leagueId = leagueId;
   }

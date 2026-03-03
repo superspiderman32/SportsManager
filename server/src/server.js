@@ -1,4 +1,5 @@
 import express from "express";
+import fetch from "node-fetch";
 import { connectDB } from "./database.js";
 import { makePlayer } from "./utils/player.js";
 import { catchUpPlayers } from "./jobs/dailyPlayer.js";
@@ -38,8 +39,14 @@ async function startServer() {
       let teamResponse = null;
       try {
         const teamName = `${username}'s Team`;
-        const teamResult = await makeTeam(teamName, result.insertedId);
-        teamResponse = { _id: teamResult.insertedId.toString(), name: teamName };
+        const teamResult = await makeTeam(teamName, result.insertedId, null, true);
+        // fetch the newly created team to obtain players
+        const createdTeam = await teamsCollection.findOne({ _id: teamResult.insertedId });
+        teamResponse = {
+          _id: createdTeam._id.toString(),
+          name: createdTeam.name,
+          players: Array.isArray(createdTeam.players) ? createdTeam.players : []
+        };
       } catch (teamErr) {
         console.error("Failed to create team for user", teamErr);
         // rollback user creation if team creation fails
@@ -225,6 +232,92 @@ async function startServer() {
     }
   });
 
+  // create a player with specific position and age range 17-35
+  app.post("/api/make-player/position/:position", async (req, res) => {
+    try {
+      const { position } = req.params;
+      const { leagueId, userId } = req.body;
+
+      if (!leagueId) {
+        return res.status(400).json({ error: "leagueId required" });
+      }
+      if (!ObjectId.isValid(leagueId)) {
+        return res.status(400).json({ error: "Invalid leagueId" });
+      }
+      const league = await db.collection("Leagues").findOne({ _id: new ObjectId(leagueId) });
+      if (!league) return res.status(404).json({ error: "League not found" });
+
+      if (!league.creatorId || !userId || String(league.creatorId) !== String(userId)) {
+        return res.status(403).json({ error: "Only the league creator can add players to this league" });
+      }
+
+      // pick a random name
+      let first = "Player";
+      let last = "Unknown";
+      try {
+        const namesRes = await fetch("https://api.api-ninjas.com/v1/babynames?gender=boy", {
+          headers: { "X-Api-Key": process.env.API_NINJAS_KEY },
+        });
+        const names = await namesRes.json();
+        first = (names[0] && names[0].name) ? names[0].name : (typeof names[0] === 'string' ? names[0] : first);
+        last = (names[1] && names[1].name) ? names[1].name : (typeof names[1] === 'string' ? names[1] : last);
+      } catch (err) {
+        console.error("random name fetch failed", err);
+      }
+
+      // dynamically import player utilities and prefer makePlayerWithPosition
+      const playerModule = await import("./utils/player.js");
+      const maker = playerModule.makePlayerWithPosition || playerModule.makePlayer;
+      const result = await maker(first, last, new Date(), new ObjectId(leagueId), position, 17, 35);
+      res.json({ message: "Positioned player created", id: result.insertedId });
+    } catch (e) {
+      console.error("/api/make-player/position error", e);
+      res.status(500).json({ error: "Failed to create positioned player" });
+    }
+  });
+
+  // convenient helper endpoint that chooses its own random name/stats
+  app.post("/api/make-player/random", async (req, res) => {
+    try {
+      const { leagueId, userId } = req.body;
+
+      if (!leagueId) {
+        return res.status(400).json({ error: "leagueId required" });
+      }
+      if (!ObjectId.isValid(leagueId)) {
+        return res.status(400).json({ error: "Invalid leagueId" });
+      }
+
+      const league = await db.collection("Leagues").findOne({ _id: new ObjectId(leagueId) });
+      if (!league) return res.status(404).json({ error: "League not found" });
+
+      // verify creator
+      if (!league.creatorId || !userId || String(league.creatorId) !== String(userId)) {
+        return res.status(403).json({ error: "Only the league creator can add players to this league" });
+      }
+
+      // fetch random baby name
+      let first = "Player";
+      let last = "Unknown";
+      try {
+        const namesRes = await fetch("https://api.api-ninjas.com/v1/babynames?gender=boy", {
+          headers: { "X-Api-Key": process.env.API_NINJAS_KEY },
+        });
+        const names = await namesRes.json();
+        first = (names[0] && names[0].name) ? names[0].name : (typeof names[0] === 'string' ? names[0] : first);
+        last = (names[1] && names[1].name) ? names[1].name : (typeof names[1] === 'string' ? names[1] : last);
+      } catch (err) {
+        console.error("random name fetch failed", err);
+      }
+
+      const result = await makePlayer(first, last, new Date(), new ObjectId(leagueId));
+      res.json({ message: "Random player created", id: result.insertedId });
+    } catch (e) {
+      console.error("/api/make-player/random error", e);
+      res.status(500).json({ error: "Failed to create random player" });
+    }
+  });
+
   app.post("/api/league/createLeague", async (req, res) => {
     try {
       const { name, userId } = req.body;
@@ -275,15 +368,19 @@ async function startServer() {
       }
 
       const teamName = `${user.username}'s Team`;
-      const result = await makeTeam(teamName, new ObjectId(userId), new ObjectId(leagueId));
+      const result = await makeTeam(teamName, new ObjectId(userId), new ObjectId(leagueId), true);
 
-      res.status(201).json({
-        _id: result.insertedId.toString(),
-        name: teamName,
-        userId,
-        leagueId,
-        players: []
-      });
+      // read the team back to include generated roster
+      const created = await teamsCollection.findOne({ _id: result.insertedId });
+      const response = {
+        _id: created._id.toString(),
+        name: created.name,
+        userId: created.userId.toString(),
+        leagueId: created.leagueId && created.leagueId.toString ? created.leagueId.toString() : created.leagueId,
+        players: Array.isArray(created.players) ? created.players : []
+      };
+
+      res.status(201).json(response);
     } catch (e) {
       console.error("/api/team/create error", e);
       res.status(500).json({ error: "Failed to create team" });
@@ -381,6 +478,32 @@ async function startServer() {
       res.json(response);
     } catch (err) {
       console.error("API team ERROR:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // explicit route to get a user's team for a specific league
+  app.get("/api/team/user/:userId/league/:leagueId", async (req, res) => {
+    try {
+      const { userId, leagueId } = req.params;
+      if (!ObjectId.isValid(userId) || !ObjectId.isValid(leagueId)) {
+        return res.status(400).json({ error: "Invalid userId or leagueId" });
+      }
+
+      const team = await teamsCollection.findOne({ userId: new ObjectId(userId), leagueId: new ObjectId(leagueId) });
+      if (!team) return res.status(404).json({ error: "Team not found" });
+
+      const response = {
+        _id: team._id && team._id.toString ? team._id.toString() : team._id,
+        name: team.name,
+        userId: team.userId && team.userId.toString ? team.userId.toString() : team.userId,
+        leagueId: team.leagueId && team.leagueId.toString ? team.leagueId.toString() : team.leagueId,
+        players: Array.isArray(team.players) ? team.players : []
+      };
+
+      res.json(response);
+    } catch (err) {
+      console.error("API team by user/league ERROR:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });

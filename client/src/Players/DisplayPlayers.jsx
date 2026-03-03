@@ -55,11 +55,24 @@ const DisplayPlayers = (props) => {
                 <h4>Top Players in League</h4>
                 <ul id="topPlayers">
                     {
-                        players.slice(0, 10).map(p => (
+                        players.slice(0, 10).map(p => {
+                        let goalieAvg = null;
+                        if (p.preferedPosition === "Goalie" && p.goalie) {
+                            const vals = Object.values(p.goalie);
+                            if (vals.length) {
+                                const sum = vals.reduce((a, b) => a + b, 0);
+                                goalieAvg = sum / vals.length;
+                            }
+                        }
+                        return (
                             <li key={p._id}>
                                 {p.firstName} {p.lastName} — {p.preferedPosition?.[0]}, {p.age} — Off: {Math.floor(p.overallOffense)}, Def: {Math.floor(p.overallDefense)}
+                                {goalieAvg !== null && (
+                                    <span> — Goalie avg: {Math.floor(goalieAvg)}</span>
+                                )}
                             </li>
-                        ))
+                        );
+                    })
                     }
                 </ul>
             </div>
@@ -68,11 +81,25 @@ const DisplayPlayers = (props) => {
                 <h4>Top Rated Undrafted Players in League</h4>
                 <ul id="topUndrafted">
                     {
-                        undrafted.slice(0, 10).map(u => (
+                        undrafted.slice(0, 10).map(u => {
+                        let goalieAvg = null;
+                        if (u.preferedPosition === "Goalie" && u.goalie) {
+                            const vals = Object.values(u.goalie);
+                            if (vals.length) {
+                                const sum = vals.reduce((a, b) => a + b, 0);
+                                goalieAvg = sum / vals.length;
+                            }
+                        }
+                        return (
                             <li key={u._id}>
-                                {u.firstName} {u.lastName} <br></br>{u.preferedPosition?.[0]}, {u.age},<br></br> Off: {Math.floor(u.overallOffense)}, Def:{Math.floor(u.overallDefense)}<br></br><br></br>
+                                {u.firstName} {u.lastName} <br></br>{u.preferedPosition?.[0]}, {u.age},<br></br> Off: {Math.floor(u.overallOffense)}, Def:{Math.floor(u.overallDefense)}
+                                {goalieAvg !== null && (
+                                    <><br></br>Goalie avg: {Math.floor(goalieAvg)}<br></br></>
+                                )}
+                                <br></br><br></br>
                             </li>
-                        ))
+                        );
+                    })
                     }
                 </ul>
             </div>
