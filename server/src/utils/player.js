@@ -32,8 +32,17 @@ export async function makePlayer(first, last, date = new Date(), leagueId = null
     reads: Math.random() * 20 + 50,
   };
 
+  const goalie = {
+    tracking: Math.random() * 30 + 50,
+    lateral: Math.random() * 30 + 50,
+    seeingEyes: Math.random() * 30 + 50,
+    durability: Math.random() * 30 + 50,
+  };
+
   const offenseValues = Object.values(offense);
   const defenseValues = Object.values(defense);
+  const goalieValues = Object.values(goalie);
+  const overallGoalie = goalieValues.reduce((sum, v) => sum + v, 0) / goalieValues.length;
   const overallOffense = offenseValues.reduce((sum, v) => sum + v, 0) / offenseValues.length;
   const overallDefense = defenseValues.reduce((sum, v) => sum + v, 0) / defenseValues.length;
 
@@ -43,6 +52,7 @@ export async function makePlayer(first, last, date = new Date(), leagueId = null
     age: Math.floor(Math.random() * 5 + 17),
     overallOffense,
     overallDefense,
+    overallGoalie,
     preferedPosition: pos,
     drafted: false,
     createdAt: date,
@@ -59,12 +69,7 @@ export async function makePlayer(first, last, date = new Date(), leagueId = null
     },
     offense,
     defense,
-    goalie: {
-      tracking: Math.random() * 30 + 50,
-      lateral: Math.random() * 30 + 50,
-      seeingEyes: Math.random() * 30 + 50,
-      durability: Math.random() * 30 + 50,
-    },
+    goalie,
   };
 
   if (leagueId) {

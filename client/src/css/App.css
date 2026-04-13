@@ -63,3 +63,19 @@ li{
   color: #888;
 }
 
+.position-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.position-header {
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 1;
+  padding: 8px 0;
+  margin: 0 0 8px 0 !important;
+}
+

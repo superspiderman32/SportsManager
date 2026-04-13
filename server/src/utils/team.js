@@ -4,7 +4,7 @@ import fetch from "node-fetch"; // needed for server-side baby name lookup
 // create a simple placeholder roster in case name fetching fails
 function makeDefaultRoster() {
   const roster = [];
-  for (let i = 0; i < 23; i++) {
+  for (let i = 0; i < 25; i++) {
     const player = {
       name: `Player ${i + 1}`,
       position: i === 0 ? "Goalie" : "Player",

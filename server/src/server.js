@@ -39,7 +39,7 @@ async function startServer() {
       let teamResponse = null;
       try {
         const teamName = `${username}'s Team`;
-        const teamResult = await makeTeam(teamName, result.insertedId, null, true);
+        const teamResult = await makeTeam(teamName, result.insertedId, null, false);
         // fetch the newly created team to obtain players
         const createdTeam = await teamsCollection.findOne({ _id: teamResult.insertedId });
         teamResponse = {
@@ -138,6 +138,8 @@ async function startServer() {
     console.error("api ERROR:", err);
     res.status(500).json({ error: "Internal server error" });
   }
+  });
+
   app.get("/api/get-all-undrafted", async (req, res) => {
   try {
     const players = await db
@@ -181,8 +183,7 @@ async function startServer() {
     console.error("api ERROR:", err);
     res.status(500).json({ error: "Internal server error" });
   }
-});
-});
+  });
 
   // additional endpoints that require the db reference
   app.get("/api/baby-name", async (req, res) => {
@@ -368,7 +369,17 @@ async function startServer() {
       }
 
       const teamName = `${user.username}'s Team`;
-      const result = await makeTeam(teamName, new ObjectId(userId), new ObjectId(leagueId), true);
+      const result = await makeTeam(teamName, new ObjectId(userId), new ObjectId(leagueId), false);
+
+      // ensure 25 undrafted players are available for this league
+      const leagueObjId = new ObjectId(leagueId);
+      const undraftedCount = await db.collection('Players').countDocuments({ leagueId: leagueObjId, drafted: false });
+      if (undraftedCount < 25) {
+        const playersToCreate = 25 - undraftedCount;
+        for (let i = 0; i < playersToCreate; i++) {
+          await makePlayer(`Player`, `${i}`, new Date(), leagueObjId);
+        }
+      }
 
       // read the team back to include generated roster
       const created = await teamsCollection.findOne({ _id: result.insertedId });
@@ -377,7 +388,8 @@ async function startServer() {
         name: created.name,
         userId: created.userId.toString(),
         leagueId: created.leagueId && created.leagueId.toString ? created.leagueId.toString() : created.leagueId,
-        players: Array.isArray(created.players) ? created.players : []
+        players: Array.isArray(created.players) ? created.players : [],
+        roster: {forwards:{firstLine:[], secondLine:[], thirdLine:[], fourthLine:[]}, defense:{firstPair:[], secondPair:[], thirdPair:[]}, goalie:[]}
       };
 
       res.status(201).json(response);
@@ -504,6 +516,98 @@ async function startServer() {
       res.json(response);
     } catch (err) {
       console.error("API team by user/league ERROR:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // add a player to a team (optionally at a specific slot index)
+  app.post('/api/team/:teamId/add-player', async (req, res) => {
+    try {
+      const { teamId } = req.params;
+      const { playerId, slotIndex } = req.body;
+
+      if (!ObjectId.isValid(teamId) || !ObjectId.isValid(playerId)) {
+        return res.status(400).json({ error: 'Invalid teamId or playerId' });
+      }
+
+      const team = await teamsCollection.findOne({ _id: new ObjectId(teamId) });
+      if (!team) return res.status(404).json({ error: 'Team not found' });
+
+      const player = await db.collection('Players').findOne({ _id: new ObjectId(playerId) });
+      if (!player) return res.status(404).json({ error: 'Player not found' });
+
+      if (player.drafted) return res.status(409).json({ error: 'Player already drafted' });
+
+      // prepare a compact player reference
+      const playerRef = {
+        _id: player._id.toString(),
+        name: `${player.firstName || ''} ${player.lastName || ''}`.trim(),
+        position: player.preferedPosition || player.position || 'Player'
+      };
+
+      // insert into team's players array at given slotIndex or append
+      let newPlayers = Array.isArray(team.players) ? [...team.players] : [];
+      if (typeof slotIndex === 'number' && slotIndex >= 0) {
+        // Ensure array is large enough for the slotIndex
+        while (newPlayers.length <= slotIndex) {
+          newPlayers.push(null);
+        }
+        // Replace player at this index (don't insert/splice)
+        newPlayers[slotIndex] = playerRef;
+      } else {
+        newPlayers.push(playerRef);
+      }
+
+      await teamsCollection.updateOne({ _id: team._id }, { $set: { players: newPlayers } });
+
+      // mark player as drafted and associate teamId
+      await db.collection('Players').updateOne({ _id: player._id }, { $set: { drafted: true, teamId: team._id } });
+
+      const updated = await teamsCollection.findOne({ _id: team._id });
+      const response = {
+        _id: updated._id.toString(),
+        name: updated.name,
+        userId: updated.userId && updated.userId.toString ? updated.userId.toString() : updated.userId,
+        leagueId: updated.leagueId && updated.leagueId.toString ? updated.leagueId.toString() : updated.leagueId,
+        players: Array.isArray(updated.players) ? updated.players : []
+      };
+
+      res.json({ message: 'Player added', team: response });
+    } catch (err) {
+      console.error('/api/team/:teamId/add-player error', err);
+      res.status(500).json({ error: 'Failed to add player to team' });
+    }
+  });
+
+  // return player position and relevant overall(s)
+  app.get("/api/player/stats/:playerId", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      if (!ObjectId.isValid(playerId)) {
+        return res.status(400).json({ error: "Invalid playerId" });
+      }
+
+      const player = await db.collection("Players").findOne({ _id: new ObjectId(playerId) });
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+
+      const position = player.preferedPosition || player.position || "Unknown";
+
+      if (String(position).toLowerCase() === "goalie") {
+        const goalieObj = player.goalie || {};
+        const vals = Object.values(goalieObj).filter(v => typeof v === 'number');
+        const overallGoalie = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+        return res.json({ position: "Goalie", overallGoalie });
+      }
+
+      // skater: return offense and defense overalls
+      const overallOffense = typeof player.overallOffense === 'number' ? player.overallOffense : null;
+      const overallDefense = typeof player.overallDefense === 'number' ? player.overallDefense : null;
+
+      return res.json({ position, overallOffense, overallDefense });
+    } catch (err) {
+      console.error("API player stats ERROR:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });

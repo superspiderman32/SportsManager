@@ -66,9 +66,11 @@ const DisplayPlayers = (props) => {
                         }
                         return (
                             <li key={p._id}>
-                                {p.firstName} {p.lastName} — {p.preferedPosition?.[0]}, {p.age} — Off: {Math.floor(p.overallOffense)}, Def: {Math.floor(p.overallDefense)}
-                                {goalieAvg !== null && (
-                                    <span> — Goalie avg: {Math.floor(goalieAvg)}</span>
+                                {p.firstName} {p.lastName} — {p.preferedPosition?.[0]}, {p.age} — 
+                                {p.preferedPosition === "Goalie" ? (
+                                    goalieAvg !== null ? `Goalie: ${Math.floor(goalieAvg)}` : 'Goalie: N/A'
+                                ) : (
+                                    `Off: ${Math.floor(p.overallOffense)}, Def: ${Math.floor(p.overallDefense)}`
                                 )}
                             </li>
                         );
@@ -91,13 +93,19 @@ const DisplayPlayers = (props) => {
                             }
                         }
                         return (
-                            <li key={u._id}>
-                                {u.firstName} {u.lastName} <br></br>{u.preferedPosition?.[0]}, {u.age},<br></br> Off: {Math.floor(u.overallOffense)}, Def:{Math.floor(u.overallDefense)}
-                                {goalieAvg !== null && (
-                                    <><br></br>Goalie avg: {Math.floor(goalieAvg)}<br></br></>
-                                )}
-                                <br></br><br></br>
-                            </li>
+                                    <li key={u._id} draggable={true} onDragStart={(e) => {
+                                        try {
+                                            e.dataTransfer.setData('application/json', JSON.stringify({ id: u._id, name: `${u.firstName} ${u.lastName}`, position: u.preferedPosition }));
+                                        } catch (err) {
+                                            e.dataTransfer.setData('text/plain', u._id);
+                                        }
+                                    }}>
+                                        {u.firstName} {u.lastName} <br></br>{u.preferedPosition?.[0]}, {u.age},<br></br> Off: {Math.floor(u.overallOffense)}, Def:{Math.floor(u.overallDefense)}
+                                        {goalieAvg !== null && (
+                                            <><br></br>Goalie avg: {Math.floor(goalieAvg)}<br></br></>
+                                        )}
+                                        <br></br><br></br>
+                                    </li>
                         );
                     })
                     }

@@ -17,17 +17,17 @@ const SignIn = (props) => {
 
       if (data && data._id) {
         setAlreadyExists(true);
-        console.log("Submitted username:", username);
-        console.log("Submitted password:", password);
+        // console.log("Submitted username:", username);
+        // console.log("Submitted password:", password);
         if(data.password === password){
-          console.log("Passwords match!");
+          // console.log("Passwords match!");
           props.setUsername(username);
           props.setSignedIn(true);
           if (props.setUserID) props.setUserID(data._id);
           if (props.setTeam && data.team) props.setTeam(data.team);
         }
         else{
-          console.log("wrong pass");
+          // console.log("wrong pass");
           setIncorrectMessage("Incorrect Password for " + username + ". Please try again, or type in a different user name to create a new account.")
           
         }
@@ -52,7 +52,7 @@ const SignIn = (props) => {
         // console.log("wrong password, should do nothign");
       setAlreadyExists(false);
     } catch (err) {
-      console.error("submit error:", err);
+      // console.error("submit error:", err);
     }
   };
 
